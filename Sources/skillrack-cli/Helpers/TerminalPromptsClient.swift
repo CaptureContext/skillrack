@@ -47,6 +47,11 @@ internal struct TerminalPromptsClient: Sendable {
 	}
 }
 
+// Promptberry clears logical lines, so wrapped option rows leave pieces of the previous frame behind.
+private let promptOptionPrefixColumnCount: Int = 10
+private let disableTerminalAutoWrap: String = "\u{1B}[?7l"
+private let enableTerminalAutoWrap: String = "\u{1B}[?7h"
+
 extension DependencyValues {
 	private enum TerminalPromptsClientKey: DependencyKey {
 		internal static var liveValue: TerminalPromptsClient {
@@ -54,29 +59,44 @@ extension DependencyValues {
 				select: { message, options in
 					try requireInteractiveTerminal()
 					do {
-						return try Promptberry.select(
-							message,
-							options: promptOptions(options)
-						)
+						return try withStablePromptRendering {
+							try Promptberry.select(
+								message,
+								options: promptOptions(
+									options,
+									terminalWidth: Terminal.shared.width
+								)
+							)
+						}
 					} catch is PromptCancelled { return nil }
 				},
 				multiselect: { message, options in
 					try requireInteractiveTerminal()
 					do {
-						return try Promptberry.multiselect(
-							message,
-							options: promptOptions(options),
-							required: true
-						)
+						return try withStablePromptRendering {
+							try Promptberry.multiselect(
+								message,
+								options: promptOptions(
+									options,
+									terminalWidth: Terminal.shared.width
+								),
+								required: true
+							)
+						}
 					} catch is PromptCancelled { return nil }
 				},
 				autocomplete: { message, options in
 					try requireInteractiveTerminal()
 					do {
-						return try Promptberry.autocomplete(
-							message,
-							options: promptOptions(options)
-						)
+						return try withStablePromptRendering {
+							try Promptberry.autocomplete(
+								message,
+								options: promptOptions(
+									options,
+									terminalWidth: Terminal.shared.width
+								)
+							)
+						}
 					} catch is PromptCancelled { return nil }
 				},
 				confirm: { message in
@@ -113,15 +133,78 @@ extension DependencyValues {
 }
 
 private func promptOptions(
-	_ options: [TerminalPromptOption]
+	_ options: [TerminalPromptOption],
+	terminalWidth: Int
 ) -> [SelectOption<String>] {
 	options.map {
-		.init(
-			value: $0.value,
-			label: $0.label,
-			hint: $0.hint
+		let option = fittedPromptOption(
+			$0,
+			terminalWidth: terminalWidth
+		)
+		return .init(
+			value: option.value,
+			label: option.label,
+			hint: option.hint
 		)
 	}
+}
+
+internal func fittedPromptOption(
+	_ option: TerminalPromptOption,
+	terminalWidth: Int
+) -> TerminalPromptOption {
+	let availableCount = max(
+		1,
+		terminalWidth - promptOptionPrefixColumnCount
+	)
+	let label = truncatedPromptText(
+		option.label,
+		maximumCount: availableCount
+	)
+
+	guard label == option.label, let hint = option.hint else {
+		return .init(
+			value: option.value,
+			label: label,
+			hint: nil
+		)
+	}
+
+	let availableHintCount = availableCount - label.count - 2
+	guard availableHintCount > 0 else {
+		return .init(
+			value: option.value,
+			label: label,
+			hint: nil
+		)
+	}
+
+	return .init(
+		value: option.value,
+		label: label,
+		hint: truncatedPromptText(
+			hint,
+			maximumCount: availableHintCount
+		)
+	)
+}
+
+private func truncatedPromptText(
+	_ text: String,
+	maximumCount: Int
+) -> String {
+	guard text.count > maximumCount else { return text }
+	guard maximumCount > 1 else { return String(text.prefix(maximumCount)) }
+	return String(text.prefix(maximumCount - 1)) + "…"
+}
+
+private func withStablePromptRendering<Value>(
+	_ operation: () throws -> Value
+) rethrows -> Value {
+	let terminal = Terminal.shared
+	terminal.write(disableTerminalAutoWrap)
+	defer { terminal.write(enableTerminalAutoWrap) }
+	return try operation()
 }
 
 internal func interactiveTerminalAvailable() -> Bool {
