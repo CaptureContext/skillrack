@@ -9,7 +9,7 @@ import Foundation
 
 @main
 internal struct AppCommand: AsyncParsableCommand {
-	internal static let version: String = "0.1.0"
+	internal static let version: String = "0.1.1"
 
 	@Flag(
 		inversion: .prefixedNo,
