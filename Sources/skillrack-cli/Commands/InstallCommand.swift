@@ -51,6 +51,9 @@ internal struct InstallCommand: AsyncParsableCommand {
 	@Flag(help: "Install every detected root skill.")
 	internal var all: Bool = false
 
+	@Flag(help: "Show skill descriptions in interactive selection.")
+	internal var showDescriptions: Bool = false
+
 	@Flag(help: "Update matching installed skills in place instead of reusing them.")
 	internal var force: Bool = false
 
@@ -440,13 +443,10 @@ internal struct InstallCommand: AsyncParsableCommand {
 			throw ValidationError("Multiple root skills were detected. Use --skill or --all with --json.")
 		}
 
-		let options = roots.map {
-			TerminalPromptOption(
-				value: $0.relativePath,
-				label: $0.skill.name,
-				hint: [$0.relativePath, $0.skill.description].compactMap { $0 }.joined(separator: " · ")
-			)
-		}
+		let options = rootSkillPromptOptions(
+			roots,
+			showDescriptions: showDescriptions
+		)
 		guard
 			let paths = try prompts.multiselect(
 				"Select root skills to install:",
@@ -499,6 +499,19 @@ internal struct InstallCommand: AsyncParsableCommand {
 			return
 				"Unable to remove temporary checkout at \(checkout.localURL.path): \(redactedMessage(for: error))"
 		}
+	}
+}
+
+internal func rootSkillPromptOptions(
+	_ roots: [DetectedSkill],
+	showDescriptions: Bool
+) -> [TerminalPromptOption] {
+	roots.map {
+		.init(
+			value: $0.relativePath,
+			label: $0.skill.name,
+			hint: showDescriptions ? $0.skill.description : nil
+		)
 	}
 }
 

@@ -9,7 +9,7 @@ import Testing
 @Suite(.serialized)
 struct CLIContractTests {
 	@Test
-	func parsesCompleteCommandSurface() throws {
+	func parsesCompleteCommandSurface() async throws {
 		let list = try #require(
 			try AppCommand.parseAsRoot([
 				"list", "--no-print-all", "--print-name", "--print-desc",
@@ -33,11 +33,13 @@ struct CLIContractTests {
 				"--if-present", "skip",
 				"--skill", "one",
 				"--skill", "two",
+				"--show-descriptions",
 				"--force",
 				"--json",
 			]) as? InstallCommand
 		)
 		#expect(install.skill == ["one", "two"])
+		#expect(install.showDescriptions)
 		#expect(install.force)
 		#expect(
 			try globalMachineOutputRequested(
@@ -45,6 +47,59 @@ struct CLIContractTests {
 				environment: [:]
 			)
 		)
+	}
+
+	@Test
+	func rootSkillSelectionIsCompactUnlessDescriptionsAreRequested() async throws {
+		let root = DetectedSkill(
+			id: .init(rawValue: "root"),
+			url: URL(fileURLWithPath: "/tmp/skills/engineering/example"),
+			relativePath: "engineering/example",
+			skill: Skill(
+				name: "example",
+				description: "An example skill."
+			)
+		)
+
+		let compact = try #require(
+			rootSkillPromptOptions(
+				[root],
+				showDescriptions: false
+			).first
+		)
+		#expect(compact.value == "engineering/example")
+		#expect(compact.label == "example")
+		#expect(compact.hint == nil)
+
+		let described = try #require(
+			rootSkillPromptOptions(
+				[root],
+				showDescriptions: true
+			).first
+		)
+		#expect(described.value == "engineering/example")
+		#expect(described.label == "example")
+		#expect(described.hint == "An example skill.")
+		#expect(described.hint?.contains(root.relativePath) == false)
+	}
+
+	@Test
+	func promptOptionsFitWithinTheTerminalWidth() async throws {
+		let option = TerminalPromptOption(
+			value: "example",
+			label: "example",
+			hint: "A description that would otherwise wrap onto another terminal row."
+		)
+
+		let fitted = fittedPromptOption(
+			option,
+			terminalWidth: 40
+		)
+		let renderedContentCount = fitted.label.count
+		+ (fitted.hint.map { 2 + $0.count } ?? 0)
+
+		#expect(renderedContentCount <= 30)
+		#expect(fitted.hint?.hasSuffix("…") == true)
 	}
 
 	@Test
