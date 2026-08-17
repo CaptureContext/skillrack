@@ -1,4 +1,4 @@
-# SkillRack
+# skillrack
 
 [![CI](https://github.com/capturecontext/skillrack/actions/workflows/ci.yml/badge.svg)](https://github.com/capturecontext/skillrack/actions/workflows/ci.yml) [![Swift 6.1](https://img.shields.io/badge/Swift-6.1-ED523F.svg?style=flat)](https://swift.org/download/) ![Platforms](https://img.shields.io/badge/platforms-macOS_15_or_later-ED523F.svg?style=flat) [![@capture_context](https://img.shields.io/badge/contact-@capture__context-1DA1F2.svg?style=flat&logo=twitter)](https://twitter.com/capture_context)
 
@@ -195,7 +195,9 @@ skillrack install https://github.com/example/skills.git \
 ```
 
 Omit the source or selection flags in an interactive terminal to use guided
-selection.
+selection. Root skill choices show names only by default. Pass
+`--show-descriptions` to include descriptions; relative paths remain available
+for explicit `--skill` selection without cluttering the interactive list.
 
 ## Linking skills
 
